@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { scheduleTimetableNotifications } from './notificationService';
 
 const AuthContext = createContext();
 
@@ -100,7 +101,10 @@ export const AuthProvider = ({ children }) => {
         settings,
         masterDriveLinks,
         globalYear,
-        globalSemester
+        globalSemester,
+        name: user.name || 'Anonymous User',
+        email: user.email || 'N/A',
+        lastSync: new Date().toISOString()
       }, { merge: true })
       .then(() => setSyncStatus('synced'))
       .catch(err => {
@@ -188,6 +192,12 @@ export const AuthProvider = ({ children }) => {
       root.classList.remove('theme-glass');
     }
   }, [settings.appStyle, settings.glassmorphism]);
+
+  useEffect(() => {
+    if (timetable.length > 0 && activeCourses.length > 0) {
+      scheduleTimetableNotifications(timetable, activeCourses);
+    }
+  }, [timetable, activeCourses]);
 
   const login = (userData) => {
     setUser(userData);

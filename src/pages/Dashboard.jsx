@@ -17,7 +17,8 @@ import {
   Save,
   Timer,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Ban
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -139,7 +140,12 @@ export default function Dashboard() {
     
     let newHistory = [...(attendanceHistory || [])];
     if (existingRecord) {
-      if (existingRecord.status === status) return; // No change
+      if (existingRecord.status === status) {
+        // Toggle off
+        newHistory = newHistory.filter(h => h.id !== existingRecord.id);
+        setAttendanceHistory(newHistory);
+        return;
+      }
       newHistory = newHistory.filter(h => h.id !== existingRecord.id);
     }
     
@@ -227,20 +233,27 @@ export default function Dashboard() {
                             const record = (attendanceHistory || []).find(h => h.courseId === cls.courseId && h.date.startsWith(today));
                             const isPresent = record?.status === 'present';
                             const isAbsent = record?.status === 'absent';
+                            const isCancelled = record?.status === 'cancelled';
                             
                             return (
                               <>
                                 <button 
                                   onClick={(e) => { e.preventDefault(); handleQuickAttendance(cls.courseId, 'present'); }}
-                                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-xs font-bold transition-all ${isPresent ? 'bg-emerald-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-[#222] text-slate-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600'}`}
+                                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 text-[11px] sm:text-xs font-bold transition-all ${isPresent ? 'bg-emerald-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-[#222] text-slate-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600'}`}
                                 >
                                   <CheckCircle2 size={14} /> {isPresent ? 'Present' : 'Mark'}
                                 </button>
                                 <button 
                                   onClick={(e) => { e.preventDefault(); handleQuickAttendance(cls.courseId, 'absent'); }}
-                                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-xs font-bold transition-all ${isAbsent ? 'bg-rose-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-[#222] text-slate-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-600'}`}
+                                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 text-[11px] sm:text-xs font-bold transition-all ${isAbsent ? 'bg-rose-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-[#222] text-slate-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-600'}`}
                                 >
                                   <XCircle size={14} /> {isAbsent ? 'Absent' : 'Miss'}
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.preventDefault(); handleQuickAttendance(cls.courseId, 'cancelled'); }}
+                                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 text-[11px] sm:text-xs font-bold transition-all ${isCancelled ? 'bg-amber-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-[#222] text-slate-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600'}`}
+                                >
+                                  <Ban size={14} /> {isCancelled ? 'No Class' : 'Cancel'}
                                 </button>
                               </>
                             );

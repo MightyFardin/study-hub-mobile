@@ -23,9 +23,14 @@ import {
   Bell,
   FileText,
   ChevronRight,
-  Plus
+  Plus,
+  Megaphone,
+  X,
+  Clock
 } from 'lucide-react';
 import CustomSelect from './components/CustomSelect';
+import { db } from './firebase';
+import { collection, addDoc, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Login = lazy(() => import('./pages/Login'));
@@ -37,7 +42,7 @@ const GradeCalculator = lazy(() => import('./pages/Calculator'));
 const Pomodoro = lazy(() => import('./pages/Pomodoro'));
 const Flashcards = lazy(() => import('./pages/Flashcards'));
 const Settings = lazy(() => import('./pages/Settings'));
-
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 // Loading component for Suspense
 const PageLoader = () => (
   <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] animate-in fade-in">
@@ -193,14 +198,96 @@ function QuickSetupModal() {
   );
 }
 
+function GlobalSystemListener() {
+  const { user } = useAuth();
+  const [announcement, setAnnouncement] = React.useState(null);
+
+  // Global Error Logger only
+  React.useEffect(() => {
+    const handleError = (msg, url, lineNo, columnNo, error) => {
+      try {
+        if (!user || user.email === 'mdfardin6118@gmail.com') return;
+        addDoc(collection(db, 'errorLogs'), {
+          message: typeof msg === 'string' ? msg : 'Unknown Error',
+          url: url || '',
+          lineNo: lineNo || 0,
+          stack: error?.stack || '',
+          userId: user?.id || 'anonymous',
+          email: user?.email || 'anonymous',
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent
+        }).catch(() => {});
+      } catch(e) {}
+    };
+
+    const handleRejection = (e) => {
+      try {
+        if (!user || user.email === 'mdfardin6118@gmail.com') return;
+        addDoc(collection(db, 'errorLogs'), {
+          message: e.reason?.message || String(e.reason),
+          stack: e.reason?.stack || '',
+          userId: user?.id || 'anonymous',
+          email: user?.email || 'anonymous',
+          timestamp: new Date().toISOString(),
+          type: 'unhandledRejection'
+        }).catch(() => {});
+      } catch(err) {}
+    };
+
+    window.addEventListener('error', (e) => handleError(e.message, e.filename, e.lineno, e.colno, e.error));
+    window.addEventListener('unhandledrejection', handleRejection);
+
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, [user]);
+
+  return null;
+}
+
 function DashboardLayout({ children }) {
   const { user, logout, globalYear, setGlobalYear, globalSemester, setGlobalSemester, syncStatus, settings, setSettings, notes, assignments, activeCourses, timetable, isFirebaseLoaded } = useAuth();
-  console.log("DEBUG QUICK SETUP:", { isFirebaseLoaded, settings }); const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  console.log("DEBUG QUICK SETUP:", { isFirebaseLoaded, settings });  const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [upcomingClass, setUpcomingClass] = React.useState(null);
   
+  // Notifications State
+  const [notificationsOpen, setNotificationsOpen] = React.useState(false);
+  const [announcementsList, setAnnouncementsList] = React.useState([]);
+  const [dismissedAnns, setDismissedAnns] = React.useState([]);
+
   const location = useLocation();
+
+  // Load dismissed announcements from storage
+  React.useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('sh2_dismissed_anns') || '[]');
+      setDismissedAnns(stored);
+    } catch(e) {}
+  }, []);
+
+  React.useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'), limit(10));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const anns = [];
+      snapshot.forEach(doc => {
+         if (doc.data().active !== false) {
+           anns.push({ id: doc.id, ...doc.data() });
+         }
+      });
+      setAnnouncementsList(anns);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const dismissAnnouncement = (id) => {
+    const updated = [...dismissedAnns, id];
+    setDismissedAnns(updated);
+    localStorage.setItem('sh2_dismissed_anns', JSON.stringify(updated));
+  };
 
   React.useEffect(() => {
     setSidebarOpen(false);
@@ -337,6 +424,7 @@ function DashboardLayout({ children }) {
 
   const QuickAddFAB = () => {
     const [open, setOpen] = React.useState(false);
+    if (location.pathname !== '/') return null;
     return (
       <div className="absolute bottom-6 right-6 z-[60] flex flex-col items-end gap-3">
         {open && (
@@ -514,25 +602,9 @@ function DashboardLayout({ children }) {
         </div>
       </aside>
 
-      {/* Main Content */}
+        {/* Main Content */}
       <main className="flex-1 flex flex-col h-[100dvh] overflow-hidden relative">
         
-        {/* Next Class Alert Toast */}
-        {upcomingClass && (
-          <div className="absolute top-4 sm:top-6 right-4 sm:right-6 z-[60] animate-in slide-in-from-top-4 fade-in">
-            <div className="bg-white dark:bg-[#111] border border-indigo-200 dark:border-indigo-500/30 shadow-lg shadow-indigo-500/10 rounded-2xl p-3 pr-4 flex items-center gap-3 max-w-sm">
-              <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-full flex items-center justify-center text-indigo-500 shrink-0">
-                <Bell size={18} className="animate-pulse" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">{upcomingClass.subject}</h4>
-                <p className="text-xs font-medium text-slate-500">Starts in <span className="text-indigo-500 font-bold">{upcomingClass.startsIn} mins</span> {upcomingClass.room && `• ${upcomingClass.room}`}</p>
-              </div>
-              <button onClick={() => setUpcomingClass(null)} className="ml-2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-md transition-colors"><X size={16}/></button>
-            </div>
-          </div>
-        )}
-
         <header className="h-16 flex items-center justify-between px-4 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-md z-40 sticky top-0 shadow-sm">
           <div className="flex items-center gap-3">
             <button 
@@ -545,7 +617,6 @@ function DashboardLayout({ children }) {
               <span className="font-black text-slate-900 dark:text-white text-lg leading-none tracking-tight">Study Hub<span className="text-indigo-500">.</span></span>
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Workspace</span>
             </div>
-            {/* Desktop breadcrumb or title could go here */}
             <div className="hidden lg:flex flex-col">
                <span className="text-sm font-black text-slate-800 dark:text-slate-200">{user?.name}'s Workspace</span>
             </div>
@@ -557,6 +628,17 @@ function DashboardLayout({ children }) {
             >
               <Search size={20} strokeWidth={2.5} />
             </button>
+            
+            <button 
+              onClick={() => setNotificationsOpen(true)} 
+              className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors active:scale-95 relative"
+            >
+              <Bell size={20} strokeWidth={2.5} />
+              {(upcomingClass || announcementsList.some(a => !dismissedAnns.includes(a.id))) && (
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 border-2 border-white dark:border-[#0a0a0a] rounded-full animate-pulse"></span>
+              )}
+            </button>
+
             <button 
               onClick={toggleTheme}
               className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors active:scale-95"
@@ -568,7 +650,88 @@ function DashboardLayout({ children }) {
                <SyncIndicator status={syncStatus} isMobile={true} />
             </div>
           </div>
+          {upcomingClass && (
+            <div className="absolute top-4 sm:top-6 right-4 sm:right-6 z-[60] animate-in slide-in-from-top-4 fade-in">
+              <div className="bg-white dark:bg-[#111] border border-indigo-200 dark:border-indigo-500/30 shadow-lg shadow-indigo-500/10 rounded-2xl p-3 pr-4 flex items-center gap-3 max-w-sm">
+                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-full flex items-center justify-center text-indigo-500 shrink-0">
+                  <Bell size={18} className="animate-pulse" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">{upcomingClass.subject}</h4>
+                  <p className="text-xs font-medium text-slate-500">Starts in <span className="text-indigo-500 font-bold">{upcomingClass.startsIn} mins</span> {upcomingClass.room && `• ${upcomingClass.room}`}</p>
+                </div>
+                <button onClick={() => setUpcomingClass(null)} className="ml-2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-md transition-colors"><X size={16}/></button>
+              </div>
+            </div>
+          )}
         </header>
+
+        {/* Notifications Dropdown/Modal */}
+        {notificationsOpen && typeof document !== 'undefined' && createPortal(
+          <div className="fixed inset-0 bg-slate-900/20 dark:bg-black/40 z-[100] flex items-start justify-end sm:pt-16 p-4 sm:pr-8 animate-in fade-in duration-200" onClick={() => setNotificationsOpen(false)}>
+            <div className="card-minimal w-full sm:w-[400px] bg-white dark:bg-[#111] p-0 overflow-hidden flex flex-col rounded-2xl shadow-2xl animate-in slide-in-from-top-10 sm:slide-in-from-top-4 border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-[#151515]">
+                <div className="flex items-center gap-2">
+                  <Bell size={18} className="text-indigo-500" />
+                  <h3 className="font-bold text-slate-900 dark:text-white">Notification Center</h3>
+                </div>
+                <button onClick={() => setNotificationsOpen(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 rounded-md transition-colors"><X size={18}/></button>
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+                {(!upcomingClass && announcementsList.length === 0) ? (
+                  <div className="p-10 flex flex-col items-center text-center text-slate-400">
+                    <CheckSquare size={40} className="mb-3 opacity-20 text-emerald-500" />
+                    <p className="text-sm font-bold">You're all caught up!</p>
+                    <p className="text-xs mt-1">No new notifications at the moment.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                    {upcomingClass && (
+                      <div className="p-4 hover:bg-slate-50 dark:hover:bg-[#1a1a1a] transition-colors relative">
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+                        <div className="flex gap-3">
+                          <div className="mt-1 p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg shrink-0">
+                            <Clock size={16} />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white">Upcoming Class: {upcomingClass.subject}</h4>
+                            <p className="text-xs font-medium text-slate-500 mt-0.5">Starts in <span className="text-indigo-500 font-bold">{upcomingClass.startsIn} mins</span> {upcomingClass.room && `in ${upcomingClass.room}`}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {announcementsList.map(ann => {
+                      const isUnread = !dismissedAnns.includes(ann.id);
+                      return (
+                        <div key={ann.id} className={`p-4 transition-colors relative ${isUnread ? 'bg-indigo-50/30 dark:bg-indigo-900/10' : 'hover:bg-slate-50 dark:hover:bg-[#1a1a1a]'}`}>
+                          {isUnread && <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-indigo-500"></div>}
+                          <div className="flex gap-3">
+                            <div className={`mt-1 p-2 rounded-lg shrink-0 ${ann.type === 'warning' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600'}`}>
+                              <Megaphone size={16} />
+                            </div>
+                            <div className="pr-4">
+                              <h4 className={`font-bold text-sm ${ann.type === 'warning' ? 'text-amber-700 dark:text-amber-500' : 'text-slate-900 dark:text-white'}`}>
+                                {ann.type === 'warning' ? 'System Warning' : 'Announcement'}
+                              </h4>
+                              <p className="text-xs text-slate-400 font-medium mt-0.5 mb-1.5">{new Date(ann.createdAt).toLocaleString()}</p>
+                              <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-relaxed">{ann.message}</p>
+                              {isUnread && (
+                                <button onClick={() => dismissAnnouncement(ann.id)} className="mt-3 text-[10px] font-bold uppercase tracking-widest text-indigo-500 hover:text-indigo-600 transition-colors">
+                                  Mark as read
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>, document.body
+        )}
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col relative custom-scrollbar">
           <div className="flex-1">
@@ -641,6 +804,7 @@ function App() {
 
   return (
     <Router>
+      <GlobalSystemListener />
       <AppUpdater />
       <Routes>
         <Route path="/" element={
@@ -681,6 +845,10 @@ function App() {
 
         <Route path="/settings" element={
           user ? <DashboardLayout><Suspense fallback={<PageLoader />}><Settings /></Suspense></DashboardLayout> : <Navigate to="/" replace />
+        } />
+
+        <Route path="/admin" element={
+          user && user.email === 'mdfardin6118@gmail.com' ? <DashboardLayout><Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense></DashboardLayout> : <Navigate to="/" replace />
         } />
         
         <Route path="*" element={<Navigate to="/" replace />} />

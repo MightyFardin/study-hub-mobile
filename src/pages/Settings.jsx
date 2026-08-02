@@ -43,6 +43,8 @@ export default function Settings() {
  const [pinAction, setPinAction] = useState(''); // 'enable' or 'disable'
  const [pinError, setPinError] = useState('');
 
+ const [updateMessage, setUpdateMessage] = useState('');
+
  const handlePushNotifToggle = async () => {
    if (!currentSettings.pushNotif) {
      if (!Capacitor.isNativePlatform()) {
@@ -163,13 +165,15 @@ export default function Settings() {
  }
  };
 
- const checkForUpdates = () => {
-   setIsCheckingUpdate(true);
-   setTimeout(() => {
-     setIsCheckingUpdate(false);
-     alert("You are on the latest version (1.3.0)!");
-   }, 2000);
- };
+  const checkForUpdates = () => {
+    setIsCheckingUpdate(true);
+    setUpdateMessage('');
+    setTimeout(() => {
+      setIsCheckingUpdate(false);
+      setUpdateMessage('You are on the latest version (1.3.0)!');
+      setTimeout(() => setUpdateMessage(''), 3000);
+    }, 1500);
+  };
 
  return (
  <>
@@ -352,7 +356,14 @@ export default function Settings() {
  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 dark:bg-[#151515] rounded-xl border border-slate-100 dark:border-slate-800 gap-4 transition-all hover:border-indigo-200 dark:hover:border-indigo-800/50">
  <div>
  <p className="text-sm font-bold">Check for Updates</p>
- <p className="text-xs text-slate-500 mt-1">Current Version: 1.3.0</p>
+ <div className="flex items-center gap-2 mt-1">
+   <p className="text-xs text-slate-500">Current Version: 1.3.0</p>
+   {updateMessage && (
+     <span className="text-[11px] font-bold text-emerald-500 animate-in fade-in">
+       • {updateMessage}
+     </span>
+   )}
+ </div>
  </div>
  <button 
    onClick={checkForUpdates}

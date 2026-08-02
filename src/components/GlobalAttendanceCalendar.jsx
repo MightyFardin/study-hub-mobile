@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, addMonths, subMonths, parseISO, isFuture } from 'date-fns';
-import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, X, Calendar as CalendarIcon, Info, Minus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, X, Calendar as CalendarIcon, Info, Minus, Ban } from 'lucide-react';
 
 export default function GlobalAttendanceCalendar({ activeCourses, attendanceHistory, onBatchUpdateHistory }) {
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
@@ -169,46 +169,56 @@ export default function GlobalAttendanceCalendar({ activeCourses, attendanceHist
                   activeCourses.map(course => {
                     const status = tempChanges[course.id]?.status;
                     
-                    const toggleStatus = () => {
-                      let next = 'present';
-                      if (status === 'present') next = 'absent';
-                      else if (status === 'absent') next = null;
+                    const setStatus = (newStatus) => {
                       setTempChanges({
                         ...tempChanges,
-                        [course.id]: { ...tempChanges[course.id], status: next }
+                        [course.id]: { 
+                          ...tempChanges[course.id], 
+                          status: status === newStatus ? null : newStatus 
+                        }
                       });
                     };
 
-                    let bgClass = "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400";
-                    let icon = <Minus size={16} />;
-                    if (status === 'present') {
-                      bgClass = "bg-emerald-100 border-emerald-500 text-emerald-600 dark:bg-emerald-900/40 dark:border-emerald-500 dark:text-emerald-400";
-                      icon = <CheckCircle2 size={16} />;
-                    } else if (status === 'absent') {
-                      bgClass = "bg-rose-100 border-rose-500 text-rose-600 dark:bg-rose-900/40 dark:border-rose-500 dark:text-rose-400";
-                      icon = <XCircle size={16} />;
-                    }
-
                     return (
-                      <div key={course.id} onClick={toggleStatus} className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#161616] flex items-center justify-between gap-3 shadow-sm hover:border-indigo-200 dark:hover:border-indigo-800/50 transition-colors cursor-pointer select-none">
+                      <div key={course.id} className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#161616] flex items-center justify-between gap-3 shadow-sm hover:border-indigo-200 dark:hover:border-indigo-800/50 transition-colors select-none">
                         <h4 className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200 truncate flex-1 pl-1">
                           {course.name}
                         </h4>
                         
-                        <div 
-                          className={`w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-full flex items-center justify-center transition-all border-2 ${bgClass}`}
-                          title="Toggle Status"
-                        >
-                          {icon}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button 
+                            onClick={() => setStatus('present')}
+                            className={`w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-full flex items-center justify-center transition-all border-2 ${status === 'present' ? 'bg-emerald-100 border-emerald-500 text-emerald-600 dark:bg-emerald-900/40 dark:border-emerald-500 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-emerald-300 dark:hover:border-emerald-700 hover:text-emerald-500'}`}
+                            title="Mark Present"
+                          >
+                            <CheckCircle2 size={16} />
+                          </button>
+                          
+                          <button 
+                            onClick={() => setStatus('absent')}
+                            className={`w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-full flex items-center justify-center transition-all border-2 ${status === 'absent' ? 'bg-rose-100 border-rose-500 text-rose-600 dark:bg-rose-900/40 dark:border-rose-500 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-rose-300 dark:hover:border-rose-700 hover:text-rose-500'}`}
+                            title="Mark Absent"
+                          >
+                            <XCircle size={16} />
+                          </button>
+
+                          <button 
+                            onClick={() => setStatus('cancelled')}
+                            className={`w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-full flex items-center justify-center transition-all border-2 ${status === 'cancelled' ? 'bg-amber-100 border-amber-500 text-amber-600 dark:bg-amber-900/40 dark:border-amber-500 dark:text-amber-400' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-amber-300 dark:hover:border-amber-700 hover:text-amber-500'}`}
+                            title="Mark Cancelled"
+                          >
+                            <Ban size={16} />
+                          </button>
                         </div>
                       </div>
                     )
                   })
                 )}
               </div>
-              <div className="mt-4 flex justify-center gap-4 text-[11px] font-medium text-slate-500 pt-2">
+              <div className="mt-4 flex justify-center gap-4 text-[11px] font-medium text-slate-500 pt-2 flex-wrap">
                 <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Present</div>
                 <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500"></div> Absent</div>
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Cancelled</div>
                 <div className="flex items-center gap-1.5"><div className="w-2 h-2 border border-slate-300 dark:border-slate-700 rounded-sm"></div> No Class</div>
               </div>
             </div>
